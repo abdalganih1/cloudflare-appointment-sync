@@ -1,0 +1,14 @@
+name = "appointment-sync"
+main = "src/index.js"
+compatibility_date = "2024-04-03"
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "appointment-sync-db"
+database_id = "519ee770-7dc7-48ac-b26f-aff822f14ecb"
+
+# R2 Bucket Binding
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "appointment-backups"
