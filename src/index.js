@@ -97,7 +97,7 @@ export default {
                     // Created
                     for (const item of (changes.appointments.created || [])) {
                         const result = await env.DB.prepare(
-                            "INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                            "INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type, server_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '+3 hours'))"
                         ).bind(userId, item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type).run();
 
                         if (result.success) {
@@ -120,7 +120,7 @@ export default {
                 if (changes.general_notes) {
                     for (const item of (changes.general_notes.created || [])) {
                         const result = await env.DB.prepare(
-                            "INSERT INTO general_notes (user_id, title, content, color_code) VALUES (?, ?, ?, ?)"
+                            "INSERT INTO general_notes (user_id, title, content, color_code, server_updated_at) VALUES (?, ?, ?, ?, datetime('now', '+3 hours'))"
                         ).bind(userId, item.title, item.content, item.color_code).run();
                         if (result.success) {
                             responseChanges.general_notes.created.push({ temp_id: item.id, server_id: result.meta.last_row_id });
@@ -171,7 +171,12 @@ export default {
 
                 return new Response(JSON.stringify({
                     status: "success",
-                    timestamp: new Date().toISOString().replace('T', ' ').split('.')[0],
+                    timestamp: new Date().toLocaleString('en-CA', {
+                        timeZone: 'Asia/Damascus',
+                        hour12: false,
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    }).replace(',', ''),
                     changes: responseChanges
                 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
             }
