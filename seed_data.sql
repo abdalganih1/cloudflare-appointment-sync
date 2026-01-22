@@ -1,5 +1,4 @@
 -- Generated Seed Data
-BEGIN TRANSACTION;
 INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type) VALUES (5, 'عيد التحرير', '2025-12-08', '10:00 AM', 180, 'عطلة كاملة', 'none');
 INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type) VALUES (5, 'عبير الطبل', '2025-12-09', '04:00 PM', 150, 'طالبة لحالها', 'none');
 INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type) VALUES (3, 'إدارة مشاريع مجتلات البناء', '2025-12-09', '10:00 AM', 180, 'Filament course', 'none');
@@ -161,4 +160,3 @@ INSERT INTO appointments (user_id, title, appointment_date, start_time, duration
 INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type) VALUES (5, 'حسين ذراع', '2026-01-21', '02:00 PM', 150, NULL, 'none');
 INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type) VALUES (5, 'طلاب معهد', '2026-01-20', '07:30 PM', 150, NULL, 'none');
 INSERT INTO general_notes (user_id, title, content, color_code) VALUES (5, 'عبد الهادي نسيان يستلم اخر دفعة', 'ضلت دفعتك الاخيرة بالصندوق وعليها اسمك', '#E91E63');
-COMMIT;

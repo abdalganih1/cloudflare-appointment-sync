@@ -7,7 +7,8 @@ This is the serverless backend for the **Techno Injaz Scheduler** application. I
 *   **⚡ Cloudflare Workers**: Runs on the edge with minimal latency.
 *   **💾 Cloudflare D1**: SQL database (SQLite) for storing Users, Appointments, and Notes.
 *   **📦 Cloudflare R2**: Object storage for secure Mobile Backups (Upload/Download).
-*   **🔄 Delta Sync Protocol**: efficient synchronization mechanism for offline-first Android apps.
+*   **🔄 Delta Sync Protocol**: Efficient synchronization mechanism for offline-first Android apps.
+*   **🌍 Global Shared Visibility**: Designed for office collaboration where all users share and manage all appointments.
 
 ## 🛠 Prerequisites
 

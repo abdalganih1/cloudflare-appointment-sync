@@ -18,6 +18,25 @@ export default {
             return new Response(null, { headers: corsHeaders });
         }
 
+        // --- PUBLIC ROUTES ---
+
+        // GET / (Home/Download)
+        if (url.pathname === '/' || url.pathname === '/download') {
+            const object = await env.BUCKET.get('public/TechnoInjaz.apk');
+
+            if (!object) {
+                return new Response("APK not found", { status: 404 });
+            }
+
+            const headers = new Headers();
+            object.writeHttpMetadata(headers);
+            headers.set('etag', object.httpEtag);
+            headers.set('Content-Type', 'application/vnd.android.package-archive');
+            headers.set('Content-Disposition', 'attachment; filename="TechnoInjaz.apk"');
+
+            return new Response(object.body, { headers });
+        }
+
         // 1. Verify App Secret
         const secret = request.headers.get("X-App-Secret");
         if (secret !== APP_SECRET) {
@@ -57,7 +76,8 @@ export default {
                 });
             }
             // Mock extract user_id from token (e.g. "mock_token_1_...")
-            const userId = parseInt(authHeader.split("_")[2]);
+            const token = authHeader.replace("Bearer ", "");
+            const userId = parseInt(token.split("_")[2]);
 
             // SYNC ROUTE
             if (url.pathname === '/api/sync' && request.method === 'POST') {
@@ -118,15 +138,35 @@ export default {
 
                 // --- FETCH OUTGOING CHANGES (Server -> Client) ---
 
-                // Fetch updated/created items since last sync
-                const serverApps = await env.DB.prepare(
-                    "SELECT * FROM appointments WHERE server_updated_at > ? AND user_id = ?"
-                ).bind(lastSync, userId).all();
-                responseChanges.appointments.updated = serverApps.results;
+                // Fetch updated/created items since last sync - Shared visibility (no user_id filter)
+                const serverAppsResults = await env.DB.prepare(
+                    `SELECT a.*, u.username, u.color_code 
+                     FROM appointments a 
+                     JOIN users u ON a.user_id = u.id 
+                     WHERE a.server_updated_at > ?`
+                ).bind(lastSync).all();
+
+                // Transform into expected format: { ..., user: { id, username, color_code } }
+                responseChanges.appointments.updated = serverAppsResults.results.map(row => ({
+                    id: row.id,
+                    user_id: row.user_id,
+                    title: row.title,
+                    appointment_date: row.appointment_date,
+                    start_time: row.start_time,
+                    duration_minutes: row.duration_minutes,
+                    notes: row.notes,
+                    recurrence_type: row.recurrence_type,
+                    server_updated_at: row.server_updated_at,
+                    user: {
+                        id: row.user_id,
+                        username: row.username,
+                        color_code: row.color_code
+                    }
+                }));
 
                 const serverNotes = await env.DB.prepare(
-                    "SELECT * FROM general_notes WHERE server_updated_at > ? AND user_id = ?"
-                ).bind(lastSync, userId).all();
+                    "SELECT * FROM general_notes WHERE server_updated_at > ?"
+                ).bind(lastSync).all();
                 responseChanges.general_notes.updated = serverNotes.results;
 
                 return new Response(JSON.stringify({
