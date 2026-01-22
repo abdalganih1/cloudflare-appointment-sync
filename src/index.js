@@ -104,15 +104,15 @@ export default {
                             responseChanges.appointments.created.push({ temp_id: item.id, server_id: result.meta.last_row_id });
                         }
                     }
-                    // Updated
+                    // Updated - Shared visibility (no user_id check in WHERE, but update user_id to last editor)
                     for (const item of (changes.appointments.updated || [])) {
                         await env.DB.prepare(
-                            "UPDATE appointments SET title = ?, appointment_date = ?, start_time = ?, duration_minutes = ?, notes = ?, recurrence_type = ? WHERE id = ? AND user_id = ?"
-                        ).bind(item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type, item.id, userId).run();
+                            "UPDATE appointments SET title = ?, appointment_date = ?, start_time = ?, duration_minutes = ?, notes = ?, recurrence_type = ?, user_id = ? WHERE id = ?"
+                        ).bind(item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type, userId, item.id).run();
                     }
-                    // Deleted
+                    // Deleted - Shared visibility
                     for (const id of (changes.appointments.deleted || [])) {
-                        await env.DB.prepare("DELETE FROM appointments WHERE id = ? AND user_id = ?").bind(id, userId).run();
+                        await env.DB.prepare("DELETE FROM appointments WHERE id = ?").bind(id).run();
                     }
                 }
 
@@ -128,11 +128,11 @@ export default {
                     }
                     for (const item of (changes.general_notes.updated || [])) {
                         await env.DB.prepare(
-                            "UPDATE general_notes SET title = ?, content = ?, color_code = ? WHERE id = ? AND user_id = ?"
-                        ).bind(item.title, item.content, item.color_code, item.id, userId).run();
+                            "UPDATE general_notes SET title = ?, content = ?, color_code = ?, user_id = ? WHERE id = ?"
+                        ).bind(item.title, item.content, item.color_code, userId, item.id).run();
                     }
                     for (const id of (changes.general_notes.deleted || [])) {
-                        await env.DB.prepare("DELETE FROM general_notes WHERE id = ? AND user_id = ?").bind(id, userId).run();
+                        await env.DB.prepare("DELETE FROM general_notes WHERE id = ?").bind(id).run();
                     }
                 }
 
