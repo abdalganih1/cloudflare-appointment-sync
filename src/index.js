@@ -5,9 +5,17 @@
 
 const APP_SECRET = "kjsdfh34789fasdnk324789fsdkjfh238947sdf";
 
+function getDamascusTime() {
+    // Current UTC time + 3 hours offset
+    const damascusDate = new Date(Date.now() + (3 * 60 * 60 * 1000));
+    // Format as YYYY-MM-DD HH:MM:SS
+    return damascusDate.toISOString().replace('T', ' ').split('.')[0];
+}
+
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
+        const serverNow = getDamascusTime();
         const corsHeaders = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -77,7 +85,8 @@ export default {
             }
             // Mock extract user_id from token (e.g. "mock_token_1_...")
             const token = authHeader.replace("Bearer ", "");
-            const userId = parseInt(token.split("_")[2]);
+            const parts = token.split("_");
+            const userId = parts.length >= 3 ? parseInt(parts[2]) : -1;
 
             // SYNC ROUTE
             if (url.pathname === '/api/sync' && request.method === 'POST') {
@@ -97,20 +106,20 @@ export default {
                     // Created
                     for (const item of (changes.appointments.created || [])) {
                         const result = await env.DB.prepare(
-                            "INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type, server_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '+3 hours'))"
-                        ).bind(userId, item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type).run();
+                            "INSERT INTO appointments (user_id, title, appointment_date, start_time, duration_minutes, notes, recurrence_type, server_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                        ).bind(userId, item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type, serverNow).run();
 
                         if (result.success) {
                             responseChanges.appointments.created.push({ temp_id: item.id, server_id: result.meta.last_row_id });
                         }
                     }
-                    // Updated - Shared visibility (no user_id check in WHERE, but update user_id to last editor)
+                    // Updated
                     for (const item of (changes.appointments.updated || [])) {
                         await env.DB.prepare(
-                            "UPDATE appointments SET title = ?, appointment_date = ?, start_time = ?, duration_minutes = ?, notes = ?, recurrence_type = ?, user_id = ? WHERE id = ?"
-                        ).bind(item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type, userId, item.id).run();
+                            "UPDATE appointments SET title = ?, appointment_date = ?, start_time = ?, duration_minutes = ?, notes = ?, recurrence_type = ?, user_id = ?, server_updated_at = ? WHERE id = ?"
+                        ).bind(item.title, item.appointment_date, item.start_time, item.duration_minutes, item.notes, item.recurrence_type, userId, serverNow, item.id).run();
                     }
-                    // Deleted - Shared visibility
+                    // Deleted
                     for (const id of (changes.appointments.deleted || [])) {
                         await env.DB.prepare("DELETE FROM appointments WHERE id = ?").bind(id).run();
                     }
@@ -120,16 +129,16 @@ export default {
                 if (changes.general_notes) {
                     for (const item of (changes.general_notes.created || [])) {
                         const result = await env.DB.prepare(
-                            "INSERT INTO general_notes (user_id, title, content, color_code, server_updated_at) VALUES (?, ?, ?, ?, datetime('now', '+3 hours'))"
-                        ).bind(userId, item.title, item.content, item.color_code).run();
+                            "INSERT INTO general_notes (user_id, title, content, color_code, server_updated_at) VALUES (?, ?, ?, ?, ?)"
+                        ).bind(userId, item.title, item.content, item.color_code, serverNow).run();
                         if (result.success) {
                             responseChanges.general_notes.created.push({ temp_id: item.id, server_id: result.meta.last_row_id });
                         }
                     }
                     for (const item of (changes.general_notes.updated || [])) {
                         await env.DB.prepare(
-                            "UPDATE general_notes SET title = ?, content = ?, color_code = ?, user_id = ? WHERE id = ?"
-                        ).bind(item.title, item.content, item.color_code, userId, item.id).run();
+                            "UPDATE general_notes SET title = ?, content = ?, color_code = ?, user_id = ?, server_updated_at = ? WHERE id = ?"
+                        ).bind(item.title, item.content, item.color_code, userId, serverNow, item.id).run();
                     }
                     for (const id of (changes.general_notes.deleted || [])) {
                         await env.DB.prepare("DELETE FROM general_notes WHERE id = ?").bind(id).run();
@@ -138,7 +147,6 @@ export default {
 
                 // --- FETCH OUTGOING CHANGES (Server -> Client) ---
 
-                // Fetch updated/created items since last sync - Shared visibility (no user_id filter)
                 const serverAppsResults = await env.DB.prepare(
                     `SELECT a.*, u.username, u.color_code 
                      FROM appointments a 
@@ -146,7 +154,6 @@ export default {
                      WHERE a.server_updated_at > ?`
                 ).bind(lastSync).all();
 
-                // Transform into expected format: { ..., user: { id, username, color_code } }
                 responseChanges.appointments.updated = serverAppsResults.results.map(row => ({
                     id: row.id,
                     user_id: row.user_id,
@@ -171,12 +178,7 @@ export default {
 
                 return new Response(JSON.stringify({
                     status: "success",
-                    timestamp: new Date().toLocaleString('en-CA', {
-                        timeZone: 'Asia/Damascus',
-                        hour12: false,
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                        hour: '2-digit', minute: '2-digit', second: '2-digit'
-                    }).replace(',', ''),
+                    timestamp: serverNow,
                     changes: responseChanges
                 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
             }
@@ -196,13 +198,11 @@ export default {
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const key = `backup_${timestamp}.db`;
 
-                // Upload to R2
                 await env.BUCKET.put(key, file);
 
-                // Save metadata to D1
-                const result = await env.DB.prepare(
-                    "INSERT INTO app_backups (file_path, file_size, notes) VALUES (?, ?, ?)"
-                ).bind(key, file.size, notes).run();
+                await env.DB.prepare(
+                    "INSERT INTO app_backups (file_path, file_size, notes, backup_date) VALUES (?, ?, ?, ?)"
+                ).bind(key, file.size, notes, serverNow).run();
 
                 return new Response(JSON.stringify({
                     message: "Backup uploaded successfully",
@@ -225,7 +225,6 @@ export default {
             }
 
             // GET /api/backup/{id}/download
-            // Route match: /api/backup/123/download
             const downloadMatch = url.pathname.match(/\/api\/backup\/(\d+)\/download/);
             if (downloadMatch && request.method === 'GET') {
                 const id = downloadMatch[1];
